@@ -1,0 +1,13 @@
+{
+  "name": "docforge-ai",
+  "private": true,
+  "workspaces": ["frontend", "backend"],
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "start": "npm run start --workspace frontend"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
+  }
+}
