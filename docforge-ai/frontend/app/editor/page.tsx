@@ -598,7 +598,10 @@ export default function EditorPage() {
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white border border-[#e7e5e4] p-5 rounded-3xl shadow-sm">
           <div className="flex items-center gap-3">
             <button onClick={() => router.push('/dashboard')} className="text-[#1f6f5f] hover:underline text-sm font-semibold flex items-center gap-1.5">
-              ← Dashboard
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+              <span>Dashboard</span>
             </button>
             <span className="text-[#e7e5e4]">|</span>
             <input
