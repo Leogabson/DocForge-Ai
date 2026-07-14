@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Production build outputs
+dist/
+build/
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE configurations
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Audit logs & local reports
+audit-report*.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Stitch assets / Mockups (Not intended for repository)
+stitch_docforge_ai_document_suite/
