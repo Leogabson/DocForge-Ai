@@ -46,15 +46,23 @@ export class VersionService {
     }
 
     // Auto-create snapshot of current state before restoring
+    const suffix = version.label ? ` to ${version.label}` : '';
     await versionRepository.create({
       documentId: doc.id,
       contentSnapshot: doc.content,
-      label: `Auto-saved before restoring to ${version.label}`,
+      label: `Auto-saved before restoring${suffix}`,
     });
 
     // Update document content to the snapshot content
     const restored = await documentRepository.update(doc.id, userId, {
       content: version.contentSnapshot,
+    });
+
+    // Dispatch update event
+    domainEvents.dispatch(DomainEventType.DOCUMENT_UPDATED, {
+      documentId: restored.id,
+      userId,
+      fieldsChanged: ['content'],
     });
 
     return restored;
