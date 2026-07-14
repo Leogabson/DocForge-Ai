@@ -49,6 +49,21 @@ export default function DashboardPage() {
   const [newDocDesc, setNewDocDesc] = useState('');
   const [newDocTags, setNewDocTags] = useState('');
 
+  // Custom Dialog state for alerts/confirmations
+  const [customDialog, setCustomDialog] = useState<{
+    type: 'alert' | 'confirm';
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const showCustomConfirm = (message: string, onConfirm: () => void) => {
+    setCustomDialog({
+      type: 'confirm',
+      message,
+      onConfirm,
+    });
+  };
+
   // Fetch all documents and folders
   async function loadData() {
     try {
@@ -196,18 +211,21 @@ export default function DashboardPage() {
 
   // Delete Document
   async function handleDeleteDocument(docId: string) {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+    showCustomConfirm(
+      'Are you sure you want to delete this document?',
+      async () => {
+        try {
+          const res = await fetch(`${apiBase}/documents/${docId}`, {
+            method: 'DELETE',
+          });
 
-    try {
-      const res = await fetch(`${apiBase}/documents/${docId}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) throw new Error('Failed to delete document.');
-      setDocuments((current) => current.filter((d) => d.id !== docId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error deleting document.');
-    }
+          if (!res.ok) throw new Error('Failed to delete document.');
+          setDocuments((current) => current.filter((d) => d.id !== docId));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Error deleting document.');
+        }
+      }
+    );
   }
 
   return (
@@ -554,6 +572,34 @@ export default function DashboardPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {customDialog && (
+        <div className="fixed inset-0 bg-[#1f2937]/45 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white border border-[#e7e5e4] p-6 rounded-[28px] max-w-sm w-full mx-4 shadow-xl space-y-4">
+            <h3 className="font-bold text-sm text-[#1f2937] uppercase tracking-wider">System Message</h3>
+            <p className="text-sm text-[#6b7280] leading-relaxed">{customDialog.message}</p>
+            
+            <div className="flex items-center justify-end gap-2 pt-2">
+              {customDialog.type !== 'alert' && (
+                <button
+                  onClick={() => setCustomDialog(null)}
+                  className="px-4 py-2 border border-[#e7e5e4] bg-white hover:bg-[#f7f5f0] text-xs font-semibold text-[#6b7280] rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  customDialog.onConfirm();
+                  setCustomDialog(null);
+                }}
+                className="px-4 py-2 bg-[#1f6f5f] hover:bg-[#175a4d] text-xs font-semibold text-white rounded-xl transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

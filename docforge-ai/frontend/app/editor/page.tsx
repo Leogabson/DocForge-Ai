@@ -181,6 +181,49 @@ export default function EditorPage() {
   // Local recovery states
   const [recoveredDraft, setRecoveredDraft] = useState<string | null>(null);
 
+  // Custom Dialog state
+  const [customDialog, setCustomDialog] = useState<{
+    type: 'alert' | 'confirm' | 'prompt';
+    message: string;
+    placeholder?: string;
+    defaultValue?: string;
+    onConfirm: (value?: string) => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  const showCustomAlert = (message: string, callback?: () => void) => {
+    setCustomDialog({
+      type: 'alert',
+      message,
+      onConfirm: () => {
+        if (callback) callback();
+      }
+    });
+  };
+
+  const showCustomConfirm = (message: string, onConfirm: () => void, onCancel?: () => void) => {
+    setCustomDialog({
+      type: 'confirm',
+      message,
+      onConfirm: () => onConfirm(),
+      onCancel,
+    });
+  };
+
+  const showCustomPrompt = (message: string, defaultValue: string, placeholder: string, onConfirm: (value: string) => void) => {
+    setCustomDialog({
+      type: 'prompt',
+      message,
+      defaultValue,
+      placeholder,
+      onConfirm: (val) => {
+        if (val !== undefined && val.trim() !== '') {
+          onConfirm(val);
+        }
+      }
+    });
+  };
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const stats = useMemo(() => {
@@ -317,7 +360,7 @@ export default function EditorPage() {
       if (!response.ok) throw new Error('Template create failed.');
       const createdTemplate = ((await response.json()) as { data: TemplateState }).data;
       setTemplates((current) => [createdTemplate, ...current]);
-      alert('Template saved successfully!');
+      showCustomAlert('Template saved successfully!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create template.');
     }
@@ -367,25 +410,28 @@ export default function EditorPage() {
 
   // Restore snapshot
   async function handleRestoreVersion(versionId: string) {
-    if (!confirm('Are you sure you want to restore this snapshot? Current unsaved edits will be saved as an auto-snapshot.')) return;
+    showCustomConfirm(
+      'Are you sure you want to restore this snapshot? Current unsaved edits will be saved as an auto-snapshot.',
+      async () => {
+        try {
+          setIsLoading(true);
+          const response = await fetch(`${apiBase}/versions/${versionId}/restore`, {
+            method: 'POST',
+          });
 
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${apiBase}/versions/${versionId}/restore`, {
-        method: 'POST',
-      });
+          if (!response.ok) throw new Error('Restore snapshot failed.');
+          const restoredDoc = ((await response.json()) as { data: DocumentState }).data;
+          setDocument(restoredDoc);
 
-      if (!response.ok) throw new Error('Restore snapshot failed.');
-      const restoredDoc = ((await response.json()) as { data: DocumentState }).data;
-      setDocument(restoredDoc);
-      
-      // Reload version logs
-      void loadVersions(restoredDoc.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restore snapshot.');
-    } finally {
-      setIsLoading(false);
-    }
+          // Reload version logs
+          void loadVersions(restoredDoc.id);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to restore snapshot.');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    );
   }
 
   // Trigger export flow timeline
@@ -1038,8 +1084,12 @@ export default function EditorPage() {
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <button
                   onClick={() => {
-                    const inst = prompt('Enter rewriting instruction (e.g. rewrite in casual tone):');
-                    if (inst) void runAssistant('tone', { instruction: inst });
+                    showCustomPrompt(
+                      'Enter rewriting instruction (e.g. rewrite in casual tone):',
+                      '',
+                      'casual tone',
+                      (inst) => void runAssistant('tone', { instruction: inst })
+                    );
                   }}
                   disabled={assistantBusy}
                   className="px-3 py-2 rounded-xl border border-[#e7e5e4] text-[#6b7280] font-semibold text-xs text-center hover:bg-[#f7f5f0] transition-colors disabled:opacity-50"
@@ -1048,8 +1098,12 @@ export default function EditorPage() {
                 </button>
                 <button
                   onClick={() => {
-                    const lang = prompt('Enter target language (e.g. Spanish, French):');
-                    if (lang) void runAssistant('translate', { targetLanguage: lang });
+                    showCustomPrompt(
+                      'Enter target language (e.g. Spanish, French):',
+                      '',
+                      'Spanish',
+                      (lang) => void runAssistant('translate', { targetLanguage: lang })
+                    );
                   }}
                   disabled={assistantBusy}
                   className="px-3 py-2 rounded-xl border border-[#e7e5e4] text-[#6b7280] font-semibold text-xs text-center hover:bg-[#f7f5f0] transition-colors disabled:opacity-50"
@@ -1083,6 +1137,60 @@ export default function EditorPage() {
           </div>
         </div>
       </div>
+      {customDialog && (
+        <div className="fixed inset-0 bg-[#1f2937]/45 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white border border-[#e7e5e4] p-6 rounded-[28px] max-w-sm w-full mx-4 shadow-xl space-y-4">
+            <h3 className="font-bold text-sm text-[#1f2937] uppercase tracking-wider">System Message</h3>
+            <p className="text-sm text-[#6b7280] leading-relaxed">{customDialog.message}</p>
+            
+            {customDialog.type === 'prompt' && (
+              <input
+                type="text"
+                defaultValue={customDialog.defaultValue || ''}
+                placeholder={customDialog.placeholder}
+                id="dialog-prompt-input"
+                className="w-full bg-[#fafaf8] border border-[#e7e5e4] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#1f6f5f]"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const input = window.document.getElementById('dialog-prompt-input') as HTMLInputElement;
+                    customDialog.onConfirm(input?.value);
+                    setCustomDialog(null);
+                  }
+                }}
+              />
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              {customDialog.type !== 'alert' && (
+                <button
+                  onClick={() => {
+                    if (customDialog.onCancel) customDialog.onCancel();
+                    setCustomDialog(null);
+                  }}
+                  className="px-4 py-2 border border-[#e7e5e4] bg-white hover:bg-[#f7f5f0] text-xs font-semibold text-[#6b7280] rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  let val: string | undefined;
+                  if (customDialog.type === 'prompt') {
+                    const input = window.document.getElementById('dialog-prompt-input') as HTMLInputElement;
+                    val = input?.value;
+                  }
+                  customDialog.onConfirm(val);
+                  setCustomDialog(null);
+                }}
+                className="px-4 py-2 bg-[#1f6f5f] hover:bg-[#175a4d] text-xs font-semibold text-white rounded-xl transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -372,7 +372,7 @@ export default function HomePage() {
                 </li>
                 <li>
                   <a href="#" className="transition hover:text-[#1f6f5f]">
-                    +1 (415) 555-0147
+                    +2349076815476
                   </a>
                 </li>
               </ul>
