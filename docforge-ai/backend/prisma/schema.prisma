@@ -43,6 +43,7 @@ model Document {
   versions    DocumentVersion[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  lastOpenedAt DateTime?         @default(now())
 }
 
 model DocumentVersion {
@@ -51,6 +52,7 @@ model DocumentVersion {
   document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   contentSnapshot String
   createdAt       DateTime @default(now())
+  label           String?
 }
 
 model Integration {

@@ -13,6 +13,9 @@ import {
   listFolders,
   createFolder,
   deleteFolder,
+  listVersions,
+  createSnapshot,
+  restoreVersion,
 } from '../controllers/documentController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
@@ -37,6 +40,11 @@ export function createDocumentRouter() {
   router.get('/templates', listTemplates);
   router.post('/templates', createTemplate);
   router.post('/assistant', runAssistantAction);
+
+  // Versions history
+  router.get('/documents/:id/versions', authenticateToken, listVersions);
+  router.post('/documents/:id/versions', authenticateToken, createSnapshot);
+  router.post('/versions/:id/restore', authenticateToken, restoreVersion);
 
   return router;
 }
