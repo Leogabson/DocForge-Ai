@@ -8,8 +8,58 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  passwordHash String
+  folders      Folder[]
+  documents    Document[]
+  integrations Integration[]
+  createdAt    DateTime      @default(now())
+}
+
+model Folder {
+  id        String     @id @default(cuid())
+  name      String
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents Document[]
+  createdAt DateTime   @default(now())
+}
+
+model Document {
+  id          String            @id @default(cuid())
+  title       String
+  description String?
+  content     String            @default("")
+  styleConfig String            @default("{}")
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      Folder?           @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  isPinned    Boolean           @default(false)
+  isFavorite  Boolean           @default(false)
+  tags        String[]
+  versions    DocumentVersion[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model DocumentVersion {
+  id              String   @id @default(cuid())
+  documentId      String
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  contentSnapshot String
+  createdAt       DateTime @default(now())
+}
+
+model Integration {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String
+  accessToken  String
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

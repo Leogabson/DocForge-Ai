@@ -20,10 +20,7 @@ type TemplateState = {
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
 function formatDate(value: string) {
-  if (!value) {
-    return 'Recently created';
-  }
-
+  if (!value) return 'Recently created';
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -90,11 +87,11 @@ export default function TemplatesPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#fafaf8] p-6 text-[#1f2937] sm:p-10">
+    <main className="min-h-screen bg-[#fafaf8] p-6 text-[#1f2937] sm:p-10 font-sans antialiased">
       <div className="mx-auto max-w-6xl">
         <header className="rounded-[28px] border border-[#e7e5e4] bg-white p-6 shadow-[0_16px_45px_rgba(31,41,55,0.04)]">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#d4a373]">Templates</p>
-          <h1 className="mt-2 text-3xl font-semibold">Templates & integrations</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-[#1f2937]">Templates & integrations</h1>
           <p className="mt-3 max-w-2xl text-[#6b7280]">
             Browse a live collection of reusable document structures and load them directly into the editor.
           </p>
@@ -106,7 +103,7 @@ export default function TemplatesPage() {
         <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <section className="rounded-[28px] border border-[#e7e5e4] bg-white p-6 shadow-[0_16px_45px_rgba(31,41,55,0.04)]">
             <h2 className="text-xl font-semibold text-[#1f2937]">Current workspace</h2>
-            <div className="mt-5 rounded-[24px] border border-[#e7e5e4] bg-[#fcfbf8] p-4">
+            <div className="mt-5 rounded-[24px] border border-[#e7e5e4] bg-[#fafaf8] p-4">
               {isLoading ? (
                 <p className="text-sm text-[#6b7280]">Loading workspace status…</p>
               ) : document ? (
@@ -131,17 +128,17 @@ export default function TemplatesPage() {
                 <p className="text-sm text-[#6b7280]">No templates have been created yet.</p>
               ) : (
                 templates.map((template) => (
-                  <div key={template.id} className="rounded-[24px] border border-[#e7e5e4] bg-[#fcfbf8] p-4">
+                  <div key={template.id} className="rounded-[24px] border border-[#e7e5e4] bg-[#fafaf8] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-lg font-semibold text-[#1f2937]">{template.name}</p>
                         <p className="mt-2 text-sm leading-6 text-[#6b7280]">{template.content.trim().slice(0, 140) || 'Reusable starter content'}</p>
                       </div>
-                      <span className="rounded-full bg-[#d4a373]/20 px-3 py-1 text-sm font-medium text-[#d4a373]">{formatDate(template.createdAt)}</span>
+                      <span className="rounded-full bg-[#1f6f5f]/10 px-3 py-1 text-sm font-medium text-[#1f6f5f]">{formatDate(template.createdAt)}</span>
                     </div>
                     <button
                       onClick={() => void applyTemplate(template)}
-                      className="mt-4 rounded-full border border-[#e7e5e4] bg-white px-4 py-2 text-sm font-medium text-[#1f2937]"
+                      className="mt-4 rounded-xl border border-[#e7e5e4] bg-white hover:bg-[#f7f5f0] px-4 py-2 text-sm font-medium text-[#1f2937] transition-colors"
                     >
                       Load into editor
                     </button>
