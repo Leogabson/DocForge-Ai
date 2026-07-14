@@ -48,8 +48,8 @@ export default function TemplatesPage() {
         throw new Error('The template workspace could not reach the live service.');
       }
 
-      const documentData = (await documentResponse.json()) as DocumentState;
-      const templatesData = (await templateResponse.json()) as TemplateState[];
+      const documentData = ((await documentResponse.json()) as { data: DocumentState }).data;
+      const templatesData = ((await templateResponse.json()) as { data: TemplateState[] }).data;
 
       setDocument(documentData);
       setTemplates(templatesData);
@@ -73,7 +73,7 @@ export default function TemplatesPage() {
         throw new Error('The template could not be loaded into the editor.');
       }
 
-      const nextDocument = (await response.json()) as DocumentState;
+      const nextDocument = ((await response.json()) as { data: DocumentState }).data;
       setDocument(nextDocument);
       setStatus(`${template.name} is now ready in the editor.`);
       router.push('/editor');

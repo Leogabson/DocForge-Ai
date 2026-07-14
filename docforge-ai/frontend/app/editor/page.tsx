@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type DocumentState = {
   id: string;
@@ -14,6 +15,12 @@ type TemplateState = {
   id: string;
   name: string;
   content: string;
+  createdAt: string;
+};
+
+type VersionRecord = {
+  id: string;
+  label: string | null;
   createdAt: string;
 };
 
@@ -33,7 +40,7 @@ function getPreviewBlocks(content: string) {
   function flushList(key: string) {
     if (listItems.length > 0) {
       blocks.push(
-        <ul key={key} className="list-disc pl-5 mt-2 mb-4 space-y-1 text-[#6b7280] text-sm leading-relaxed">
+        <ul key={key} className="list-disc pl-5 mt-2 mb-4 space-y-1 text-[#4b5563] text-sm leading-relaxed">
           {listItems.map((item, idx) => (
             <li key={idx}>{item}</li>
           ))}
@@ -59,19 +66,19 @@ function getPreviewBlocks(content: string) {
     // Headings
     if (line.startsWith('# ')) {
       blocks.push(
-        <h1 key={index} className="text-3xl font-bold font-display text-[#1f2937] mt-6 mb-3 first:mt-0">
+        <h1 key={index} className="text-2xl font-bold font-display text-[#111827] mt-6 mb-3 first:mt-0">
           {line.slice(2)}
         </h1>
       );
     } else if (line.startsWith('## ')) {
       blocks.push(
-        <h2 key={index} className="text-2xl font-semibold font-display text-[#1f2937] mt-5 mb-2.5">
+        <h2 key={index} className="text-xl font-bold font-display text-[#1f2937] mt-5 mb-2.5">
           {line.slice(3)}
         </h2>
       );
     } else if (line.startsWith('### ')) {
       blocks.push(
-        <h3 key={index} className="text-xl font-semibold font-display text-[#1f2937] mt-4 mb-2">
+        <h3 key={index} className="text-lg font-semibold font-display text-[#374151] mt-4 mb-2">
           {line.slice(4)}
         </h3>
       );
@@ -79,7 +86,7 @@ function getPreviewBlocks(content: string) {
     // Blockquote
     else if (line.startsWith('> ')) {
       blocks.push(
-        <blockquote key={index} className="border-l-4 border-[#1f6f5f] bg-[#1f6f5f]/5 pl-4 py-2 my-4 italic text-[#6b7280] rounded-r-lg text-sm">
+        <blockquote key={index} className="border-l-4 border-[#1f6f5f] bg-[#1f6f5f]/5 pl-4 py-2 my-4 italic text-[#4b5563] rounded-r-lg text-sm">
           {line.slice(2)}
         </blockquote>
       );
@@ -87,11 +94,19 @@ function getPreviewBlocks(content: string) {
     // Code block
     else if (line.startsWith('```')) {
       blocks.push(
-        <pre key={index} className="bg-[#f7f5f0] text-[#1f2937] font-mono text-xs p-3 rounded-xl my-3 overflow-x-auto border border-[#e7e5e4]/40">
+        <pre key={index} className="bg-[#fafaf8] text-[#1f2937] font-mono text-xs p-3 rounded-xl my-3 overflow-x-auto border border-[#e7e5e4]/40">
           <code>{line}</code>
         </pre>
       );
     } 
+    // Page break
+    else if (trimmed === '---') {
+      blocks.push(
+        <div key={index} className="border-t-2 border-dashed border-[#e7e5e4] my-6 flex items-center justify-center">
+          <span className="text-[10px] uppercase font-bold text-[#6b7280] bg-[#fafaf8] px-2 -translate-y-1/2">Page Break</span>
+        </div>
+      );
+    }
     // Empty spacing line
     else if (!trimmed) {
       blocks.push(<div key={index} className="h-2" />);
@@ -107,7 +122,7 @@ function getPreviewBlocks(content: string) {
       blocks.push(
         <p
           key={index}
-          className="text-sm leading-relaxed text-[#6b7280] mb-3"
+          className="text-sm leading-relaxed text-[#4b5563] mb-3"
           dangerouslySetInnerHTML={{ __html: renderedText }}
         />
       );
@@ -119,8 +134,12 @@ function getPreviewBlocks(content: string) {
 }
 
 export default function EditorPage() {
+  const router = useRouter();
   const [document, setDocument] = useState<DocumentState | null>(null);
   const [templates, setTemplates] = useState<TemplateState[]>([]);
+  const [versions, setVersions] = useState<VersionRecord[]>([]);
+  
+  // Loading and error states
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'offline'>('saved');
@@ -128,14 +147,33 @@ export default function EditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // Document Styling States
+  // Styling States
   const [fontFamily, setFontFamily] = useState('Inter');
   const [theme, setTheme] = useState('Modern Clean');
   const [marginSize, setMarginSize] = useState(24);
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [headerText, setHeaderText] = useState('');
   const [footerText, setFooterText] = useState('');
+  const [pageSize, setPageSize] = useState<'A4' | 'Letter' | 'Legal'>('A4');
+
+  // Watermark parameters
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
+  const [watermarkText, setWatermarkText] = useState('DRAFT');
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.1);
+  const [watermarkRotation, setWatermarkRotation] = useState(-45);
+  const [watermarkFontSize, setWatermarkFontSize] = useState(60);
+  const [watermarkColor, setWatermarkColor] = useState('#6b7280');
   
+  // Exporter workflow
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'docx' | 'html' | 'epub' | 'rtf' | 'txt' | 'markdown' | 'odt'>('pdf');
+  const [exportStep, setExportStep] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [downloadLink, setDownloadLink] = useState<string | null>(null);
+
+  // Version panel
+  const [showVersions, setShowVersions] = useState(false);
+  const [newVersionLabel, setNewVersionLabel] = useState('');
+
   // Selection/Floating toolbar states
   const [selectedText, setSelectedText] = useState('');
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
@@ -149,7 +187,7 @@ export default function EditorPage() {
     const text = document?.content ?? '';
     const characters = text.length;
     const words = text.trim().split(/\s+/).filter(Boolean).length;
-    const readingTime = Math.ceil(words / 200); // 200 words per minute
+    const readingTime = Math.ceil(words / 200);
     return { characters, words, readingTime };
   }, [document?.content]);
 
@@ -169,8 +207,8 @@ export default function EditorPage() {
         throw new Error('Unable to contact backend active document services.');
       }
 
-      const documentData = (await documentResponse.json()) as DocumentState;
-      const templatesData = (await templateResponse.json()) as TemplateState[];
+      const documentData = ((await documentResponse.json()) as { data: DocumentState }).data;
+      const templatesData = ((await templateResponse.json()) as { data: TemplateState[] }).data;
 
       // Parse style configuration
       try {
@@ -182,6 +220,15 @@ export default function EditorPage() {
           if (config.orientation) setOrientation(config.orientation);
           if (config.headerText) setHeaderText(config.headerText);
           if (config.footerText) setFooterText(config.footerText);
+          if (config.pageSize) setPageSize(config.pageSize);
+          if (config.watermark) {
+            setWatermarkEnabled(config.watermark.enabled);
+            setWatermarkText(config.watermark.text || 'DRAFT');
+            setWatermarkOpacity(config.watermark.opacity || 0.1);
+            setWatermarkRotation(config.watermark.rotation || -45);
+            setWatermarkFontSize(config.watermark.fontSize || 60);
+            setWatermarkColor(config.watermark.color || '#6b7280');
+          }
         }
       } catch (e) {
         console.error('Error parsing styleConfig:', e);
@@ -196,10 +243,26 @@ export default function EditorPage() {
       setDocument(documentData);
       setTemplates(templatesData);
       setHasLoaded(true);
+
+      // Load version history
+      void loadVersions(documentData.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error starting workspace session.');
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  // Fetch version history
+  async function loadVersions(docId: string) {
+    try {
+      const response = await fetch(`${apiBase}/documents/${docId}/versions`);
+      if (response.ok) {
+        const payload = ((await response.json()) as { data: VersionRecord[] }).data;
+        setVersions(payload);
+      }
+    } catch (e) {
+      console.error('Failed to load version checkpoints:', e);
     }
   }
 
@@ -252,14 +315,15 @@ export default function EditorPage() {
       });
 
       if (!response.ok) throw new Error('Template create failed.');
-      const createdTemplate = (await response.json()) as TemplateState;
+      const createdTemplate = ((await response.json()) as { data: TemplateState }).data;
       setTemplates((current) => [createdTemplate, ...current]);
+      alert('Template saved successfully!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create template.');
     }
   }
 
-  async function runAssistant(action: 'summary' | 'tone' | 'structure') {
+  async function runAssistant(action: 'summary' | 'tone' | 'structure' | 'grammar' | 'improve' | 'translate', extra = {}) {
     if (!document?.content.trim()) return;
 
     try {
@@ -267,16 +331,120 @@ export default function EditorPage() {
       const response = await fetch(`${apiBase}/assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, content: document.content }),
+        body: JSON.stringify({ action, content: document.content, ...extra }),
       });
 
       if (!response.ok) throw new Error('AI request failed.');
-      const payload = (await response.json()) as { content: string };
+      const payload = ((await response.json()) as { data: { content: string } }).data;
       setDocument((current) => (current ? { ...current, content: payload.content, updatedAt: new Date().toISOString() } : current));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI assistant failed.');
     } finally {
       setAssistantBusy(false);
+    }
+  }
+
+  // Create document snapshot
+  async function handleCreateSnapshot(e: React.FormEvent) {
+    e.preventDefault();
+    if (!document || !newVersionLabel.trim()) return;
+
+    try {
+      const response = await fetch(`${apiBase}/documents/${document.id}/versions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newVersionLabel.trim() }),
+      });
+
+      if (!response.ok) throw new Error('Checkpoint snapshot failed.');
+      const checkpoint = ((await response.json()) as { data: VersionRecord }).data;
+      setVersions((current) => [checkpoint, ...current]);
+      setNewVersionLabel('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create snapshot.');
+    }
+  }
+
+  // Restore snapshot
+  async function handleRestoreVersion(versionId: string) {
+    if (!confirm('Are you sure you want to restore this snapshot? Current unsaved edits will be saved as an auto-snapshot.')) return;
+
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${apiBase}/versions/${versionId}/restore`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) throw new Error('Restore snapshot failed.');
+      const restoredDoc = ((await response.json()) as { data: DocumentState }).data;
+      setDocument(restoredDoc);
+      
+      // Reload version logs
+      void loadVersions(restoredDoc.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restore snapshot.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Trigger export flow timeline
+  async function handleExport() {
+    if (!document) return;
+
+    try {
+      setIsExporting(true);
+      setDownloadLink(null);
+      
+      // Step 1: Preparing
+      setExportStep('Preparing document...');
+      await new Promise(r => setTimeout(r, 600));
+
+      // Step 2: Rendering
+      setExportStep('Rendering content...');
+      await new Promise(r => setTimeout(r, 600));
+
+      // Step 3: Generating file
+      setExportStep(`Generating ${exportFormat.toUpperCase()}...`);
+      
+      const styleConfig = {
+        fontFamily,
+        theme,
+        marginSize,
+        orientation,
+        headerText,
+        footerText,
+        pageSize,
+        watermark: {
+          enabled: watermarkEnabled,
+          text: watermarkText,
+          opacity: watermarkOpacity,
+          rotation: watermarkRotation,
+          fontSize: watermarkFontSize,
+          color: watermarkColor,
+        }
+      };
+
+      const response = await fetch(`${apiBase}/documents/${document.id}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: exportFormat, styleConfig }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to compile ${exportFormat.toUpperCase()} file.`);
+      }
+
+      const payload = ((await response.json()) as { data: { fileKey: string; fileName: string } }).data;
+      
+      // Step 4: Ready
+      setExportStep('Download Ready ✓');
+      setDownloadLink(`http://localhost:4000/api/storage/files/${payload.fileKey}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed.');
+      setExportStep(null);
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -295,6 +463,15 @@ export default function EditorPage() {
       orientation,
       headerText,
       footerText,
+      pageSize,
+      watermark: {
+        enabled: watermarkEnabled,
+        text: watermarkText,
+        opacity: watermarkOpacity,
+        rotation: watermarkRotation,
+        fontSize: watermarkFontSize,
+        color: watermarkColor,
+      }
     });
 
     const timer = window.setTimeout(() => {
@@ -302,7 +479,7 @@ export default function EditorPage() {
     }, 800);
 
     return () => window.clearTimeout(timer);
-  }, [document?.content, document?.title, fontFamily, theme, marginSize, orientation, headerText, footerText, hasLoaded]);
+  }, [document?.content, document?.title, fontFamily, theme, marginSize, orientation, headerText, footerText, pageSize, watermarkEnabled, watermarkText, watermarkOpacity, watermarkRotation, watermarkFontSize, watermarkColor, hasLoaded]);
 
   // Floating toolbar toggling based on text selection
   function handleTextareaSelect(e: React.SyntheticEvent<HTMLTextAreaElement>) {
@@ -360,7 +537,7 @@ export default function EditorPage() {
   if (isLoading) {
     return (
       <main className="min-h-screen bg-[#fafaf8] flex items-center justify-center p-6">
-        <div className="text-sm text-[#6b7280] font-semibold tracking-wide animate-pulse">
+        <div className="text-sm text-[#1f6f5f] font-semibold tracking-wide animate-pulse">
           Opening editor studio...
         </div>
       </main>
@@ -374,9 +551,9 @@ export default function EditorPage() {
         {/* HEADER BAR */}
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white border border-[#e7e5e4] p-5 rounded-3xl shadow-sm">
           <div className="flex items-center gap-3">
-            <a href="/dashboard" className="text-[#1f6f5f] hover:underline text-sm font-semibold flex items-center gap-1.5">
+            <button onClick={() => router.push('/dashboard')} className="text-[#1f6f5f] hover:underline text-sm font-semibold flex items-center gap-1.5">
               ← Dashboard
-            </a>
+            </button>
             <span className="text-[#e7e5e4]">|</span>
             <input
               value={document?.title ?? ''}
@@ -386,28 +563,35 @@ export default function EditorPage() {
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Auto-Save Indicators */}
-            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
+            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider mr-4">
               {saveStatus === 'saving' && (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-yellow-500 animate-ping" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse" />
                   <span className="text-yellow-600">Saving...</span>
                 </>
               )}
               {saveStatus === 'saved' && (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-[#1f6f5f]" />
-                  <span className="text-[#1f6f5f]">Synced to DB</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#1f6f5f]" />
+                  <span className="text-[#1f6f5f]">Synced</span>
                 </>
               )}
               {saveStatus === 'offline' && (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="text-red-500">Offline (local draft saved)</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  <span className="text-red-500">Offline (local draft)</span>
                 </>
               )}
             </span>
+
+            <button
+              onClick={() => setShowVersions(!showVersions)}
+              className="px-4 py-2 border border-[#e7e5e4] bg-white hover:bg-[#f7f5f0] text-sm text-[#6b7280] font-medium rounded-xl transition-colors"
+            >
+              🕒 Snapshots ({versions.length})
+            </button>
 
             <button
               onClick={createTemplateFromContent}
@@ -450,7 +634,7 @@ export default function EditorPage() {
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           
           {/* EDITOR WRAPPER */}
-          <section className="bg-white border border-[#e7e5e4] p-6 rounded-[32px] shadow-sm relative flex flex-col min-h-[550px]">
+          <section className="bg-white border border-[#e7e5e4] p-6 rounded-[32px] shadow-sm relative flex flex-col min-h-[620px]">
             <div className="flex items-center justify-between border-b border-[#e7e5e4]/20 pb-4 mb-4">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Editor Panel</span>
               
@@ -464,7 +648,7 @@ export default function EditorPage() {
 
             {/* FLOATING GLASSMORPHIC TOOLBAR */}
             {showFloatingToolbar && (
-              <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md border border-[#e7e5e4] px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 z-10 animate-fade-in transition-all">
+              <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-white/95 border border-[#e7e5e4] px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 z-10 animate-fade-in transition-all">
                 <button
                   onClick={() => insertFormat('**', '**')}
                   className="p-1.5 hover:bg-[#1f6f5f]/10 text-xs font-bold rounded"
@@ -509,7 +693,7 @@ export default function EditorPage() {
               onChange={(e) => setDocument((current) => (current ? { ...current, content: e.target.value } : current))}
               onSelect={handleTextareaSelect}
               onKeyDown={handleKeyDown}
-              className="flex-1 w-full min-h-[420px] text-sm leading-relaxed text-[#1f2937] outline-none resize-none font-mono"
+              className="flex-1 w-full min-h-[460px] text-sm leading-relaxed text-[#1f2937] outline-none resize-none font-mono"
               placeholder="Start drafting your document in Markdown... (Use Ctrl+B for bold, Ctrl+I for italic, Ctrl+Q for blockquotes, Ctrl+K for links)"
             />
           </section>
@@ -517,20 +701,83 @@ export default function EditorPage() {
           {/* ASIDE LAYOUTS: PREVIEW, STYLING & ASSISTANT */}
           <div className="space-y-6">
             
-            {/* LIVE PREVIEW */}
+            {/* VERSION CONTROL SIDEBAR (DYNAMIC INSET) */}
+            {showVersions && (
+              <section className="bg-white border border-[#e7e5e4] p-6 rounded-[32px] shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-[#e7e5e4]/20 pb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Version History Logs</span>
+                  <button onClick={() => setShowVersions(false)} className="text-xs text-red-500 font-bold">Close</button>
+                </div>
+                
+                {/* Save snapshot form */}
+                <form onSubmit={handleCreateSnapshot} className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Checkpoint label (e.g. Draft v2)..."
+                    value={newVersionLabel}
+                    onChange={(e) => setNewVersionLabel(e.target.value)}
+                    className="flex-1 bg-[#fafaf8] border border-[#e7e5e4] rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                  />
+                  <button type="submit" className="bg-[#1f6f5f] hover:bg-[#175a4d] text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+                    Snapshot
+                  </button>
+                </form>
+
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pt-2">
+                  {versions.length === 0 ? (
+                    <p className="text-xs text-[#6b7280]">No manual snapshots saved yet.</p>
+                  ) : (
+                    versions.map((ver) => (
+                      <div key={ver.id} className="flex items-center justify-between p-2.5 border border-[#e7e5e4]/30 hover:bg-[#fafaf8] rounded-xl text-xs">
+                        <div className="min-w-0 pr-2">
+                          <p className="font-semibold text-[#1f2937] truncate">{ver.label}</p>
+                          <p className="text-[10px] text-[#6b7280]">{new Date(ver.createdAt).toLocaleString()}</p>
+                        </div>
+                        <button
+                          onClick={() => void handleRestoreVersion(ver.id)}
+                          className="bg-[#1f6f5f]/10 text-[#1f6f5f] hover:bg-[#1f6f5f]/20 font-bold px-2 py-1 rounded"
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* LIVE PREVIEW WITH WATERMARK INJECT */}
             <section className="bg-white border border-[#e7e5e4] p-6 rounded-[32px] shadow-sm">
               <div className="flex items-center justify-between border-b border-[#e7e5e4]/20 pb-4 mb-4">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Live Preview</span>
                 <span className="text-xs text-[#1f6f5f] font-semibold uppercase">Parity Match</span>
               </div>
               <div 
-                className="min-h-[250px] max-h-[400px] overflow-y-auto bg-white p-5 rounded-2xl border border-[#e7e5e4]/20 shadow-inner"
+                className="min-h-[250px] max-h-[380px] overflow-y-auto bg-white p-5 rounded-2xl border border-[#e7e5e4]/20 shadow-inner relative"
                 style={{
                   fontFamily: fontFamily === 'Playfair Display' ? 'Georgia, serif' : fontFamily,
                   padding: `${marginSize}px`,
                   width: '100%',
                 }}
               >
+                {/* Optional Watermark */}
+                {watermarkEnabled && (
+                  <div
+                    className="absolute pointer-events-none select-none uppercase font-bold text-center z-10 whitespace-nowrap"
+                    style={{
+                      top: '50%',
+                      left: '50%',
+                      transform: `translate(-50%, -50%) rotate(${watermarkRotation}deg)`,
+                      opacity: watermarkOpacity,
+                      fontSize: `${watermarkFontSize}px`,
+                      color: watermarkColor,
+                    }}
+                  >
+                    {watermarkText}
+                  </div>
+                )}
+
                 {/* Header slot */}
                 {headerText && (
                   <div className="border-b border-[#e7e5e4]/40 pb-1.5 mb-4 text-[10px] uppercase tracking-wider text-[#6b7280] flex justify-between font-sans">
@@ -551,6 +798,71 @@ export default function EditorPage() {
                   </div>
                 )}
               </div>
+            </section>
+
+            {/* PREMIUM EXPORT WIDGET (timeline loader) */}
+            <section className="bg-white border border-[#e7e5e4] p-6 rounded-[32px] shadow-sm space-y-4">
+              <div className="border-b border-[#e7e5e4]/20 pb-3 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Export Document</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-[#6b7280] mb-1">Format</label>
+                  <select
+                    value={exportFormat}
+                    onChange={(e) => setExportFormat(e.target.value as any)}
+                    className="w-full bg-[#fafaf8] border border-[#e7e5e4] rounded-lg p-2 text-xs text-[#1f2937] outline-none"
+                  >
+                    <option value="pdf">PDF (via Playwright)</option>
+                    <option value="docx">Word (DOCX)</option>
+                    <option value="html">HTML Layout</option>
+                    <option value="epub">eBook (EPUB)</option>
+                    <option value="rtf">Rich Text (RTF)</option>
+                    <option value="odt">OpenOffice (ODT)</option>
+                    <option value="markdown">Markdown File</option>
+                    <option value="txt">Plain Text (TXT)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-[#6b7280] mb-1">Page Size</label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(e.target.value as any)}
+                    className="w-full bg-[#fafaf8] border border-[#e7e5e4] rounded-lg p-2 text-xs text-[#1f2937] outline-none"
+                  >
+                    <option value="A4">A4 Standard</option>
+                    <option value="Letter">Letter US</option>
+                    <option value="Legal">Legal</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Progress timeline */}
+              {exportStep && (
+                <div className="p-4 bg-[#fafaf8] border border-[#e7e5e4]/40 rounded-2xl text-xs space-y-2">
+                  <p className="font-semibold text-[#1f6f5f] animate-pulse">{exportStep}</p>
+                  
+                  {downloadLink && (
+                    <a
+                      href={downloadLink}
+                      download
+                      className="inline-block mt-1 px-4 py-2 bg-[#1f6f5f] hover:bg-[#175a4d] text-white font-semibold rounded-lg text-[10px] uppercase tracking-wider text-center transition-colors"
+                    >
+                      ⬇️ Download Ready file
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={handleExport}
+                disabled={isExporting}
+                className="w-full py-3 bg-[#1f6f5f] hover:bg-[#175a4d] text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-sm transition-colors disabled:opacity-55"
+              >
+                {isExporting ? 'Processing export...' : 'Export formatted document'}
+              </button>
             </section>
 
             {/* DOCUMENT STYLING PANEL */}
@@ -638,34 +950,111 @@ export default function EditorPage() {
                   className="w-full bg-[#fafaf8] border border-[#e7e5e4] rounded-lg p-2 text-xs text-[#1f2937] outline-none"
                 />
               </div>
+
+              {/* Watermark subpanel */}
+              <div className="border-t border-[#e7e5e4]/30 pt-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase text-[#6b7280]">Enable Watermark</label>
+                  <input
+                    type="checkbox"
+                    checked={watermarkEnabled}
+                    onChange={(e) => setWatermarkEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-[#1f6f5f] cursor-pointer"
+                  />
+                </div>
+
+                {watermarkEnabled && (
+                  <div className="space-y-3 p-3 bg-[#fafaf8] border border-[#e7e5e4]/40 rounded-xl">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-[#6b7280] mb-1">Watermark Text</label>
+                      <input
+                        type="text"
+                        value={watermarkText}
+                        onChange={(e) => setWatermarkText(e.target.value)}
+                        className="w-full bg-white border border-[#e7e5e4] rounded p-1.5 text-xs text-[#1f2937] outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-[#6b7280] mb-1">Opacity ({watermarkOpacity})</label>
+                        <input
+                          type="range"
+                          min="0.05"
+                          max="0.5"
+                          step="0.05"
+                          value={watermarkOpacity}
+                          onChange={(e) => setWatermarkOpacity(Number(e.target.value))}
+                          className="w-full accent-[#1f6f5f]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-[#6b7280] mb-1">Rotation ({watermarkRotation}°)</label>
+                        <input
+                          type="range"
+                          min="-90"
+                          max="90"
+                          step="5"
+                          value={watermarkRotation}
+                          onChange={(e) => setWatermarkRotation(Number(e.target.value))}
+                          className="w-full accent-[#1f6f5f]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
 
-            {/* AI ACTIONS */}
+            {/* AI ASSISTANT (Expanded methods) */}
             <section className="bg-white border border-[#e7e5e4] p-6 rounded-[32px] shadow-sm">
               <div className="flex items-center justify-between border-b border-[#e7e5e4]/20 pb-4 mb-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">AI Assistant</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">AI Assistant Panel</span>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => void runAssistant('summary')}
                   disabled={assistantBusy}
-                  className="px-4 py-3 rounded-2xl bg-[#1f6f5f]/10 hover:bg-[#1f6f5f]/20 text-[#1f6f5f] font-semibold text-xs text-center transition-colors disabled:opacity-50"
+                  className="px-3 py-2.5 rounded-xl bg-[#1f6f5f]/10 hover:bg-[#1f6f5f]/20 text-[#1f6f5f] font-semibold text-xs text-center transition-colors disabled:opacity-50"
                 >
-                  {assistantBusy ? 'Working…' : 'Summary'}
+                  Summary
                 </button>
                 <button
-                  onClick={() => void runAssistant('tone')}
+                  onClick={() => void runAssistant('grammar')}
                   disabled={assistantBusy}
-                  className="px-4 py-3 rounded-2xl bg-[#1f6f5f]/10 hover:bg-[#1f6f5f]/20 text-[#1f6f5f] font-semibold text-xs text-center transition-colors disabled:opacity-50"
+                  className="px-3 py-2.5 rounded-xl bg-[#1f6f5f]/10 hover:bg-[#1f6f5f]/20 text-[#1f6f5f] font-semibold text-xs text-center transition-colors disabled:opacity-50"
                 >
-                  Refine Tone
+                  Grammar
                 </button>
                 <button
-                  onClick={() => void runAssistant('structure')}
+                  onClick={() => void runAssistant('improve')}
                   disabled={assistantBusy}
-                  className="px-4 py-3 rounded-2xl bg-[#1f6f5f]/10 hover:bg-[#1f6f5f]/20 text-[#1f6f5f] font-semibold text-xs text-center transition-colors disabled:opacity-50"
+                  className="px-3 py-2.5 rounded-xl bg-[#1f6f5f]/10 hover:bg-[#1f6f5f]/20 text-[#1f6f5f] font-semibold text-xs text-center transition-colors disabled:opacity-50"
                 >
-                  Structure
+                  Polish Text
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    const inst = prompt('Enter rewriting instruction (e.g. rewrite in casual tone):');
+                    if (inst) void runAssistant('tone', { instruction: inst });
+                  }}
+                  disabled={assistantBusy}
+                  className="px-3 py-2 rounded-xl border border-[#e7e5e4] text-[#6b7280] font-semibold text-xs text-center hover:bg-[#f7f5f0] transition-colors disabled:opacity-50"
+                >
+                  Custom Rewrite
+                </button>
+                <button
+                  onClick={() => {
+                    const lang = prompt('Enter target language (e.g. Spanish, French):');
+                    if (lang) void runAssistant('translate', { targetLanguage: lang });
+                  }}
+                  disabled={assistantBusy}
+                  className="px-3 py-2 rounded-xl border border-[#e7e5e4] text-[#6b7280] font-semibold text-xs text-center hover:bg-[#f7f5f0] transition-colors disabled:opacity-50"
+                >
+                  Translate
                 </button>
               </div>
             </section>
@@ -675,7 +1064,7 @@ export default function EditorPage() {
               <div className="flex items-center justify-between border-b border-[#e7e5e4]/20 pb-4 mb-4">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Templates</span>
               </div>
-              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+              <div className="space-y-2 max-h-[160px] overflow-y-auto">
                 {templates.length === 0 ? (
                   <p className="text-xs text-[#6b7280]">No templates saved yet.</p>
                 ) : (

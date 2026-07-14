@@ -63,8 +63,8 @@ export default function DashboardPage() {
         throw new Error('Unable to fetch workspace data from the backend server.');
       }
 
-      const docsData = (await docsResponse.json()) as DocumentRecord[];
-      const foldersData = (await foldersResponse.json()) as FolderRecord[];
+      const docsData = ((await docsResponse.json()) as { data: DocumentRecord[] }).data;
+      const foldersData = ((await foldersResponse.json()) as { data: FolderRecord[] }).data;
 
       setDocuments(docsData);
       setFolders(foldersData);
@@ -116,7 +116,7 @@ export default function DashboardPage() {
       });
 
       if (!res.ok) throw new Error('Failed to create folder.');
-      const folder = (await res.json()) as FolderRecord;
+      const folder = ((await res.json()) as { data: FolderRecord }).data;
       setFolders((current) => [...current, folder]);
       setNewFolderName('');
       setShowFolderModal(false);
@@ -149,7 +149,7 @@ export default function DashboardPage() {
       });
 
       if (!res.ok) throw new Error('Failed to create document.');
-      const doc = (await res.json()) as DocumentRecord;
+      const doc = ((await res.json()) as { data: DocumentRecord }).data;
       setDocuments((current) => [doc, ...current]);
       setNewDocTitle('');
       setNewDocDesc('');
@@ -170,7 +170,7 @@ export default function DashboardPage() {
       });
 
       if (!res.ok) throw new Error('Failed to toggle pin state.');
-      const updated = (await res.json()) as DocumentRecord;
+      const updated = ((await res.json()) as { data: DocumentRecord }).data;
       setDocuments((current) => current.map((d) => (d.id === doc.id ? updated : d)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error modifying pin state.');
@@ -187,7 +187,7 @@ export default function DashboardPage() {
       });
 
       if (!res.ok) throw new Error('Failed to toggle favorite state.');
-      const updated = (await res.json()) as DocumentRecord;
+      const updated = ((await res.json()) as { data: DocumentRecord }).data;
       setDocuments((current) => current.map((d) => (d.id === doc.id ? updated : d)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error modifying favorite state.');
